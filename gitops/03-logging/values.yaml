@@ -18,11 +18,11 @@ lokistack:
     region: us-east-1
     # Secret name containing S3 credentials (created by Terraform)
     secretName: logging-loki-s3
-  # Node placement for Loki pods (matches Terraform machine pool)
-  # Terraform creates nodes with label: node-role.kubernetes.io/loki=""
-  nodeSelector:
-    node-role.kubernetes.io/loki: ""
-  # No tolerations needed - machine pool doesn't have taints
+  # Node placement for Loki pods
+  # Disabled nodeSelector to allow scheduling on any worker node
+  # The dedicated loki machine pool (2x m5.4xlarge) may not be enough for 1x.small
+  # Enable nodeSelector when using larger machine pool or more replicas
+  nodeSelector: {}
   tolerations: []
   # Service account for IRSA (created by Terraform)
   serviceAccountName: loki-sa
