@@ -87,9 +87,9 @@ variable "namespace" {
 }
 
 variable "service_account_name" {
-  description = "Name of the Kubernetes service account for Loki"
+  description = "Name of the Kubernetes service account for Loki (must match LokiStack name, e.g., 'logging-loki' for LokiStack named 'logging-loki')"
   type        = string
-  default     = "loki"
+  default     = "logging-loki"
   nullable    = false
 }
 
