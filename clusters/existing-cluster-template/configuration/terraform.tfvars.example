@@ -1,0 +1,100 @@
+# Example terraform.tfvars for Existing ROSA HCP Cluster
+# Copy this file to terraform.tfvars and fill in your values
+#
+# To get the required values, run these commands:
+#
+# CLUSTER_NAME="your-cluster-name"
+#
+# # Get cluster ID
+# rosa describe cluster -c $CLUSTER_NAME -o json | jq -r '.id'
+#
+# # Get OIDC endpoint
+# OIDC_ENDPOINT=$(rosa describe cluster -c $CLUSTER_NAME -o json | jq -r '.aws.sts.oidc_endpoint_url')
+# echo "OIDC Issuer URL (without https://): $(echo $OIDC_ENDPOINT | sed 's|https://||')"
+#
+# # Get AWS Account ID
+# AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+# echo "OIDC Provider ARN: arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/$(echo $OIDC_ENDPOINT | sed 's|https://||')"
+#
+# # Get a private subnet ID
+# VPC_ID=$(rosa describe cluster -c $CLUSTER_NAME -o json | jq -r '.aws.subnet_ids[0]' | xargs -I{} aws ec2 describe-subnets --subnet-ids {} --query 'Subnets[0].VpcId' --output text)
+# aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=map-public-ip-on-launch,Values=false" --query 'Subnets[0].SubnetId' --output text
+#
+# # Get Kubernetes API URL
+# oc whoami --show-server
+
+# =============================================================================
+# EXISTING CLUSTER INFORMATION (REQUIRED)
+# =============================================================================
+
+# Cluster ID - Get via: rosa describe cluster -c <name> -o json | jq -r '.id'
+cluster_id = "your-cluster-id"
+
+# Cluster name
+cluster_name = "your-cluster-name"
+
+# AWS region
+region = "us-east-1"
+
+# =============================================================================
+# KUBERNETES API (REQUIRED)
+# =============================================================================
+
+# Kubernetes API server URL - Get via: oc whoami --show-server
+k8s_host = "https://api.your-cluster.example.com:443"
+
+# Note: k8s_token and token are provided via environment variables:
+# export TF_VAR_token=$(rosa token)
+# export TF_VAR_k8s_token=$(oc whoami -t)
+
+# =============================================================================
+# OIDC CONFIGURATION FOR IRSA (REQUIRED)
+# =============================================================================
+
+# OIDC Provider ARN - Construct from OIDC endpoint
+# Format: arn:aws:iam::<account-id>:oidc-provider/<oidc-endpoint>
+oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.op1.openshiftapps.com/abc123xyz"
+
+# OIDC Issuer URL (without https://)
+# Get via: rosa describe cluster -c <name> -o json | jq -r '.aws.sts.oidc_endpoint_url' | sed 's|https://||'
+oidc_issuer_url = "oidc.op1.openshiftapps.com/abc123xyz"
+
+# =============================================================================
+# LOKI CONFIGURATION
+# =============================================================================
+
+# Enable Loki logging stack
+loki_enabled = true
+
+# Subnet ID for Loki machine pool (use a private subnet)
+loki_subnet_id = "subnet-0abc123def456"
+
+# Create dedicated machine pool for Loki
+loki_create_machinepool = true
+
+# Machine pool configuration
+loki_instance_type = "m5.4xlarge"
+loki_replicas      = 2
+
+# Log retention in days
+loki_retention_days = 30
+
+# =============================================================================
+# GITOPS CONFIGURATION
+# =============================================================================
+
+# Git repository containing GitOps Helm charts
+gitops_repo_url      = "https://github.com/sgkevin1980/validated-pattern-terraform-rosa.git"
+gitops_repo_revision = "main"
+gitops_base_path     = "gitops"
+
+# =============================================================================
+# OPTIONAL
+# =============================================================================
+
+# Additional tags for AWS resources
+tags = {
+  Environment = "production"
+  Team        = "platform"
+}
+

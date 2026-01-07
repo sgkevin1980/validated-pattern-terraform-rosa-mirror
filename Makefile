@@ -90,6 +90,21 @@ help: ## Show this help message
 	@echo ""
 	@echo "  Example: make deploy.public"
 	@echo ""
+	@echo "$(GREEN)Existing Cluster Deployment:$(NC)"
+	@echo "  For deploying to an existing ROSA cluster (not managed by this Terraform):"
+	@echo ""
+	@echo "  1. Copy the template:"
+	@echo "     cp -r clusters/existing-cluster-template clusters/my-cluster"
+	@echo ""
+	@echo "  2. Configure terraform.tfvars with your cluster details"
+	@echo "     (see clusters/existing-cluster-template/README.md)"
+	@echo ""
+	@echo "  3. Deploy:"
+	@echo "     make deploy-existing CLUSTER=my-cluster"
+	@echo ""
+	@echo "  make deploy-existing CLUSTER=<name>   Deploy to existing cluster"
+	@echo "  make destroy-existing CLUSTER=<name>  Remove configuration from existing cluster"
+	@echo ""
 
 # Initialize Terraform for clusters
 # Pattern rule: make init.public, make init.private, make init.egress-zero
@@ -481,6 +496,107 @@ show-infra.%:
 show-config.%:
 	@echo "$(BLUE)$* Configuration Outputs:$(NC)"
 	@cd $(call get_cluster_dir,$*)/configuration && terraform output 2>/dev/null || echo "Configuration not deployed yet"
+
+# =============================================================================
+# EXISTING CLUSTER DEPLOYMENT
+# =============================================================================
+# For deploying GitOps and Loki to existing ROSA clusters not managed by Terraform
+#
+# Usage:
+#   make deploy-existing CLUSTER=my-cluster
+#   make destroy-existing CLUSTER=my-cluster
+#
+# Prerequisites:
+#   1. Copy template: cp -r clusters/existing-cluster-template clusters/my-cluster
+#   2. Edit clusters/my-cluster/configuration/terraform.tfvars
+#   3. Login to cluster: oc login ...
+#   4. Export tokens: export TF_VAR_token=$(rosa token)
+
+# Validate CLUSTER variable is set
+.PHONY: _check-cluster
+_check-cluster:
+ifndef CLUSTER
+	$(error CLUSTER is not set. Usage: make deploy-existing CLUSTER=my-cluster)
+endif
+	@if [ ! -d "clusters/$(CLUSTER)/configuration" ]; then \
+		echo "$(YELLOW)Error: clusters/$(CLUSTER)/configuration not found$(NC)"; \
+		echo "Copy the template first: cp -r clusters/existing-cluster-template clusters/$(CLUSTER)"; \
+		exit 1; \
+	fi
+
+# Deploy to existing cluster
+deploy-existing: _check-cluster ## Deploy to existing ROSA cluster (requires CLUSTER=name)
+	@echo "$(BLUE)Deploying configuration to existing cluster: $(CLUSTER)$(NC)"
+	@echo ""
+	@echo "Prerequisites:"
+	@echo "  1. Logged into cluster: oc whoami"
+	@echo "  2. OCM token: export TF_VAR_token=\$$(rosa token)"
+	@echo ""
+	@if [ -z "$$TF_VAR_token" ]; then \
+		echo "$(YELLOW)Warning: TF_VAR_token not set. Run: export TF_VAR_token=\$$(rosa token)$(NC)"; \
+		exit 1; \
+	fi
+	@cd clusters/$(CLUSTER)/configuration && \
+		terraform init && \
+		TF_VAR_k8s_token=$$(oc whoami -t) terraform apply -auto-approve
+	@echo ""
+	@echo "$(GREEN)Deployment complete!$(NC)"
+	@echo "Check status: oc get applications -n openshift-gitops"
+
+# Plan for existing cluster (dry run)
+plan-existing: _check-cluster ## Plan deployment to existing cluster (requires CLUSTER=name)
+	@echo "$(BLUE)Planning configuration for existing cluster: $(CLUSTER)$(NC)"
+	@if [ -z "$$TF_VAR_token" ]; then \
+		echo "$(YELLOW)Warning: TF_VAR_token not set. Run: export TF_VAR_token=\$$(rosa token)$(NC)"; \
+		exit 1; \
+	fi
+	@cd clusters/$(CLUSTER)/configuration && \
+		terraform init && \
+		TF_VAR_k8s_token=$$(oc whoami -t) terraform plan
+
+# Destroy configuration on existing cluster
+destroy-existing: _check-cluster ## Remove configuration from existing cluster (requires CLUSTER=name)
+	@echo "$(YELLOW)Destroying configuration on existing cluster: $(CLUSTER)$(NC)"
+	@echo "This will remove GitOps, Loki, and related resources."
+	@echo "Your ROSA cluster will NOT be affected."
+	@echo ""
+	@if [ -z "$$TF_VAR_token" ]; then \
+		echo "$(YELLOW)Warning: TF_VAR_token not set. Run: export TF_VAR_token=\$$(rosa token)$(NC)"; \
+		exit 1; \
+	fi
+	@cd clusters/$(CLUSTER)/configuration && \
+		TF_VAR_k8s_token=$$(oc whoami -t) terraform destroy -auto-approve
+	@echo "$(GREEN)Configuration removed$(NC)"
+
+# Show outputs for existing cluster
+show-existing: _check-cluster ## Show outputs for existing cluster (requires CLUSTER=name)
+	@echo "$(BLUE)Outputs for existing cluster: $(CLUSTER)$(NC)"
+	@cd clusters/$(CLUSTER)/configuration && terraform output 2>/dev/null || echo "Configuration not deployed yet"
+
+# Create new cluster directory from template
+new-cluster: ## Create new cluster config from template (requires CLUSTER=name)
+ifndef CLUSTER
+	$(error CLUSTER is not set. Usage: make new-cluster CLUSTER=my-cluster)
+endif
+	@if [ -d "clusters/$(CLUSTER)" ]; then \
+		echo "$(YELLOW)Error: clusters/$(CLUSTER) already exists$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Creating new cluster configuration: $(CLUSTER)$(NC)"
+	@cp -r clusters/existing-cluster-template clusters/$(CLUSTER)
+	@cp clusters/$(CLUSTER)/configuration/terraform.tfvars.example clusters/$(CLUSTER)/configuration/terraform.tfvars
+	@echo ""
+	@echo "$(GREEN)Created: clusters/$(CLUSTER)$(NC)"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Edit clusters/$(CLUSTER)/configuration/terraform.tfvars"
+	@echo "  2. Login to your cluster: oc login ..."
+	@echo "  3. Export tokens: export TF_VAR_token=\$$(rosa token)"
+	@echo "  4. Deploy: make deploy-existing CLUSTER=$(CLUSTER)"
+	@echo ""
+	@echo "See clusters/$(CLUSTER)/README.md for detailed instructions."
+
+# =============================================================================
 
 # Cleanup
 clean: ## Clean Terraform files (.terraform directories and lock files)
