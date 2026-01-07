@@ -8,8 +8,7 @@ namespace: openshift-logging
 lokistack:
   name: logging-loki
   # Size options: 1x.extra-small, 1x.small, 1x.medium
-  # extra-small often causes 429 rate limiting under normal log volume
-  size: 1x.small
+  size: 1x.extra-small
   # Storage configuration (from Terraform outputs)
   storage:
     # S3 bucket name (get from Terraform: module.loki.bucket_name)
@@ -18,12 +17,14 @@ lokistack:
     region: us-east-1
     # Secret name containing S3 credentials (created by Terraform)
     secretName: logging-loki-s3
-  # Node placement for Loki pods
-  # Disabled nodeSelector to allow scheduling on any worker node
-  # The dedicated loki machine pool (2x m5.4xlarge) may not be enough for 1x.small
-  # Enable nodeSelector when using larger machine pool or more replicas
-  nodeSelector: {}
-  tolerations: []
+  # Node placement for Loki pods (matches Terraform machine pool)
+  nodeSelector:
+    logging: loki
+  tolerations:
+    - key: logging
+      operator: Equal
+      value: loki
+      effect: NoSchedule
   # Service account for IRSA (created by Terraform)
   serviceAccountName: loki-sa
 
