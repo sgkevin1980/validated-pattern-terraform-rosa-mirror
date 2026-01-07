@@ -1,0 +1,11 @@
+{{- if not .Values.loki.enabled }}
+# OperatorGroup for GitOps operator
+# Only created in first release (when loki.enabled=false)
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-gitops-operator
+  namespace: {{ .Values.operator.namespace }}
+spec: {}
+{{- end }}
+

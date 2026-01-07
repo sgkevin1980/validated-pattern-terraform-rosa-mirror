@@ -1,24 +1,26 @@
 module "network" {
-  source = "../../../modules/network-private"
+  source = "../../../../modules/infrastructure/network-egress-zero"
 
   name_prefix = var.cluster_name
   vpc_cidr    = var.vpc_cidr
   multi_az    = var.multi_az
   # subnet_cidr_size is automatically calculated based on VPC CIDR and number of subnets
-  tags = var.tags
+  flow_log_s3_bucket = var.flow_log_s3_bucket # Audit logging
+  tags               = var.tags
 }
 
 module "iam" {
-  source = "../../../modules/iam"
+  source = "../../../../modules/infrastructure/iam"
 
   cluster_name         = var.cluster_name
   account_role_prefix  = var.cluster_name # No trailing dash - account-iam-resources module adds it
   operator_role_prefix = var.cluster_name # No trailing dash - operator-roles module adds it
+  zero_egress          = true              # Enable zero egress mode (attaches ECR read-only policy to worker role)
   tags                 = var.tags
 }
 
 module "cluster" {
-  source = "../../../modules/cluster"
+  source = "../../../../modules/infrastructure/cluster"
 
   cluster_name       = var.cluster_name
   region             = var.region
@@ -31,27 +33,45 @@ module "cluster" {
   oidc_config_id     = module.iam.oidc_config_id
   oidc_endpoint_url  = module.iam.oidc_endpoint_url
 
-  # Dev defaults - PrivateLink API but relaxed encryption
-  private            = true  # PrivateLink API
-  etcd_encryption    = false # Dev doesn't require encryption
-  availability_zones = module.network.private_subnet_azs
-  multi_az           = var.multi_az
+  # Production hardening - maximum security
+  private                    = true            # PrivateLink API only
+  # etcd_encryption            = true            # Encrypt etcd data
+  kms_key_arn                = var.kms_key_arn # Customer-managed KMS for encryption
+  # disable_workload_monitoring = true            # Disable workload monitoring (may require internet egress)
+  zero_egress                 = true            # Enable zero egress mode (egress-zero cluster)
+  multi_az                   = true            # Always multi-AZ for production
+  availability_zones         = module.network.private_subnet_azs
 
-  # Machine pool configuration
-  # NOTE: If machine_pools is not provided, ROSA creates "workers" (plural) for single-AZ
-  # For multi-AZ, ROSA creates "workers-0", "workers-1", "workers-2" (one per subnet)
+  # Egress-zero clusters may take longer for nodes to start due to network connectivity
+  # Set to false to allow cluster creation to complete even if nodes are still starting
+  wait_for_std_compute_nodes_complete = false
+
+  # Pin to stable version for production
+  openshift_version = var.openshift_version
+
+  # Custom network CIDRs (if needed to avoid conflicts)
+  service_cidr = var.service_cidr
+  pod_cidr     = var.pod_cidr
+  host_prefix  = var.host_prefix
+
+  # Production machine pools - larger instances, proper scaling
+  # NOTE: For multi-AZ, ROSA creates "workers-0", "workers-1", "workers-2" (one per subnet)
   machine_pools = [
     {
-      name                = "workers" # Must match ROSA's default pool name
+      name                = "workers" # Must match ROSA's default pool name (will be "workers-0", "workers-1", etc. for multi-AZ)
       instance_type       = var.instance_type
-      min_replicas        = var.multi_az ? 3 : 2 # 3 for multi-AZ, 2 for single AZ
-      max_replicas        = var.multi_az ? 6 : 4 # Double min replicas
-      multi_az            = var.multi_az
+      min_replicas        = 3 # Minimum for HA (multi-AZ)
+      max_replicas        = 6 # Double min replicas
+      multi_az            = true
       autoscaling_enabled = true
     }
   ]
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Environment = "production"
+    Security    = "high"
+    Compliance  = var.fips ? "fips-140-2" : "standard"
+  })
 
   # CRITICAL: Explicit dependency ensures cluster is destroyed BEFORE IAM during destroy
   # During destroy, Terraform destroys resources in reverse dependency order
@@ -64,7 +84,7 @@ module "cluster" {
 # This can be removed once an external identity provider is configured
 module "identity_admin" {
   count  = var.admin_password != null ? 1 : 0
-  source = "../../../modules/identity-admin"
+  source = "../../../../modules/infrastructure/identity-admin"
 
   cluster_id     = module.cluster.cluster_id
   admin_password = var.admin_password
@@ -73,10 +93,11 @@ module "identity_admin" {
 # Bastion Host (optional, for development/demo use only)
 # WARNING: This bastion is provided for development and demonstration purposes only.
 # For production deployments, use AWS Transit Gateway, Direct Connect, or VPN connections.
+# NOTE: For egress-zero clusters, bastion_public_ip should always be false
 # The bastion module creates SSM VPC endpoints required for Session Manager access
 module "bastion" {
   count  = var.enable_bastion ? 1 : 0
-  source = "../../../modules/bastion"
+  source = "../../../../modules/infrastructure/bastion"
 
   name_prefix            = var.cluster_name
   vpc_id                 = module.network.vpc_id
@@ -84,7 +105,7 @@ module "bastion" {
   private_subnet_ids     = module.network.private_subnet_ids    # All private subnets for VPC endpoints
   region                 = var.region
   vpc_cidr               = var.vpc_cidr
-  bastion_public_ip      = var.bastion_public_ip
+  bastion_public_ip      = var.bastion_public_ip # Should be false for egress-zero
   bastion_public_ssh_key = var.bastion_public_ssh_key
 
   tags = var.tags

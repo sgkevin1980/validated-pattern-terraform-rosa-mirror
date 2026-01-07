@@ -1,0 +1,7 @@
+# Cluster Logging Operator Values
+
+namespace: openshift-logging
+channel: stable-6.1
+source: redhat-operators
+installPlanApproval: Automatic
+

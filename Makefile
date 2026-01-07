@@ -71,10 +71,24 @@ help: ## Show this help message
 	@echo "  make tunnel-status.<cluster>    Check if tunnel is running"
 	@echo "  make bastion-connect.<cluster>  Connect to bastion via SSM Session Manager"
 	@echo ""
-	@echo "  Legacy syntax (still supported):"
-	@echo "  make login-public, show-endpoints-public, show-credentials-public"
-	@echo "  make login-private, show-endpoints-private, show-credentials-private"
-	@echo "  make login-egress-zero, show-endpoints-egress-zero, show-credentials-egress-zero"
+	@echo "$(GREEN)Infrastructure & Configuration (New Structure):$(NC)"
+	@echo "  The new structure separates infrastructure and configuration:"
+	@echo "    clusters/examples/<cluster>/infrastructure/  - VPC, IAM, ROSA cluster"
+	@echo "    clusters/examples/<cluster>/configuration/   - GitOps, Loki, etc."
+	@echo ""
+	@echo "  make apply-infra.<cluster>      Deploy infrastructure (VPC, IAM, cluster)"
+	@echo "  make apply-config.<cluster>     Deploy configuration (reads from terraform.tfvars)"
+	@echo "  make deploy.<cluster>           Full deployment: infrastructure + login + configuration"
+	@echo "  make show-infra.<cluster>       Show infrastructure outputs"
+	@echo "  make show-config.<cluster>      Show configuration outputs"
+	@echo "  make destroy-config.<cluster>   Destroy configuration only"
+	@echo "  make destroy-infra.<cluster>    Destroy infrastructure only"
+	@echo ""
+	@echo "  Configuration is controlled by terraform.tfvars:"
+	@echo "    loki_enabled = true           # Enable Loki logging"
+	@echo "    # Future: monitoring_enabled, external_secrets_enabled, etc."
+	@echo ""
+	@echo "  Example: make deploy.public"
 	@echo ""
 
 # Initialize Terraform for clusters
@@ -275,7 +289,7 @@ tunnel-start.%:
 			exit 0; \
 		fi && \
 		echo "$(YELLOW)Note: sshuttle requires sudo privileges. You will be prompted for your local sudo password.$(NC)" && \
-		sudo sshuttle --ssh-cmd "ssh -o ProxyCommand='aws --region $$REGION ssm start-session --target $$BASTION_ID --document-name AWS-StartSSHSession --parameters portNumber=22' -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+		sudo sshuttle --ssh-cmd "ssh -i $(HOME)/.ssh/id_rsa -o ProxyCommand='aws --region $$REGION ssm start-session --target $$BASTION_ID --document-name AWS-StartSSHSession --parameters portNumber=22' -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
 			--remote ec2-user@$$BASTION_ID \
 			--dns $$VPC_CIDR \
 			$$VPC_CIDR \
@@ -299,10 +313,10 @@ tunnel-stop.%:
 			PID=$$(cat $$PIDFILE 2>/dev/null) && \
 			if [ -n "$$PID" ] && kill -0 $$PID 2>/dev/null; then \
 				sudo kill $$PID && \
-				rm -f $$PIDFILE && \
+				sudo rm -f $$PIDFILE && \
 				echo "$(GREEN)Tunnel stopped$(NC)"; \
 			else \
-				rm -f $$PIDFILE && \
+				sudo rm -f $$PIDFILE && \
 				echo "$(YELLOW)Tunnel process not found (cleaned up PID file)$(NC)"; \
 			fi; \
 		else \
@@ -376,6 +390,97 @@ tunnel-status-private: tunnel-status.private ## Check tunnel status for private 
 tunnel-status-egress-zero: tunnel-status.egress-zero ## Check tunnel status for egress-zero cluster
 bastion-connect-private: bastion-connect.private ## Connect to private cluster bastion
 bastion-connect-egress-zero: bastion-connect.egress-zero ## Connect to egress-zero cluster bastion
+
+# =============================================================================
+# Infrastructure and Configuration Targets (New Structure)
+# =============================================================================
+# The new structure has:
+#   clusters/examples/<cluster>/infrastructure/  - VPC, IAM, ROSA cluster
+#   clusters/examples/<cluster>/configuration/   - GitOps, Loki
+
+# Infrastructure targets
+init-infra.%:
+	@echo "$(BLUE)Initializing $* infrastructure...$(NC)"
+	@cd $(call get_cluster_dir,$*)/infrastructure && terraform init -reconfigure
+
+plan-infra.%: init-infra.%
+	@echo "$(BLUE)Planning $* infrastructure...$(NC)"
+	@cd $(call get_cluster_dir,$*)/infrastructure && terraform plan -out=terraform.tfplan
+
+apply-infra.%: plan-infra.%
+	@echo "$(YELLOW)Applying $* infrastructure...$(NC)"
+	@cd $(call get_cluster_dir,$*)/infrastructure && terraform apply terraform.tfplan
+
+destroy-infra.%:
+	@echo "$(YELLOW)WARNING: This will destroy the $* infrastructure!$(NC)"
+	@cd $(call get_cluster_dir,$*)/infrastructure && terraform destroy -auto-approve
+
+# Configuration targets (requires oc login first)
+# Configuration is controlled by terraform.tfvars in the configuration folder
+# Example terraform.tfvars:
+#   loki_enabled = true
+#   gitops_repo_url = "https://github.com/your-org/your-repo.git"
+init-config.%:
+	@echo "$(BLUE)Initializing $* configuration...$(NC)"
+	@cd $(call get_cluster_dir,$*)/configuration && terraform init -reconfigure
+
+plan-config.%: init-config.%
+	@echo "$(BLUE)Planning $* configuration...$(NC)"
+	@if [ -z "$$TF_VAR_k8s_token" ]; then \
+		TF_VAR_k8s_token=$$(oc whoami -t 2>/dev/null); \
+		if [ -z "$$TF_VAR_k8s_token" ]; then \
+			echo "$(YELLOW)Error: Not logged in. Run 'make login.$*' first$(NC)"; \
+			exit 1; \
+		fi; \
+		export TF_VAR_k8s_token; \
+	fi && \
+	cd $(call get_cluster_dir,$*)/configuration && \
+		TF_VAR_k8s_token=$$(oc whoami -t) terraform plan -out=terraform.tfplan
+
+apply-config.%: init-config.%
+	@echo "$(YELLOW)Applying $* configuration...$(NC)"
+	@if [ -z "$$TF_VAR_k8s_token" ]; then \
+		TF_VAR_k8s_token=$$(oc whoami -t 2>/dev/null); \
+		if [ -z "$$TF_VAR_k8s_token" ]; then \
+			echo "$(YELLOW)Error: Not logged in. Run 'make login.$*' first$(NC)"; \
+			exit 1; \
+		fi; \
+		export TF_VAR_k8s_token; \
+	fi && \
+	cd $(call get_cluster_dir,$*)/configuration && \
+		TF_VAR_k8s_token=$$(oc whoami -t) terraform apply -auto-approve
+	@echo "$(GREEN)Configuration deployed!$(NC)"
+	@echo "$(GREEN)Check status: make show-config.$*$(NC)"
+
+destroy-config.%:
+	@echo "$(YELLOW)WARNING: This will destroy the $* configuration!$(NC)"
+	@if [ -z "$$TF_VAR_k8s_token" ]; then \
+		TF_VAR_k8s_token=$$(oc whoami -t 2>/dev/null); \
+		if [ -z "$$TF_VAR_k8s_token" ]; then \
+			echo "$(YELLOW)Error: Not logged in. Run 'make login.$*' first$(NC)"; \
+			exit 1; \
+		fi; \
+		export TF_VAR_k8s_token; \
+	fi && \
+	cd $(call get_cluster_dir,$*)/configuration && \
+		TF_VAR_k8s_token=$$(oc whoami -t) terraform destroy -auto-approve
+
+# Combined: Deploy full cluster (infrastructure + configuration)
+deploy.%: apply-infra.%
+	@echo "$(BLUE)Logging into cluster...$(NC)"
+	@$(MAKE) login.$*
+	@echo "$(BLUE)Deploying configuration...$(NC)"
+	@$(MAKE) apply-config.$*
+
+# Show infrastructure outputs
+show-infra.%:
+	@echo "$(BLUE)$* Infrastructure Outputs:$(NC)"
+	@cd $(call get_cluster_dir,$*)/infrastructure && terraform output
+
+# Show configuration outputs
+show-config.%:
+	@echo "$(BLUE)$* Configuration Outputs:$(NC)"
+	@cd $(call get_cluster_dir,$*)/configuration && terraform output 2>/dev/null || echo "Configuration not deployed yet"
 
 # Cleanup
 clean: ## Clean Terraform files (.terraform directories and lock files)

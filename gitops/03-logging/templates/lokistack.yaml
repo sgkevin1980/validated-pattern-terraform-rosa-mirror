@@ -1,0 +1,89 @@
+# LokiStack for OpenShift Logging 6.x
+# Reference: https://docs.openshift.com/container-platform/latest/observability/logging/log_storage/cluster-logging-loki.html
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: {{ .Values.lokistack.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: lokistack
+    app.kubernetes.io/part-of: logging-stack
+spec:
+  size: {{ .Values.lokistack.size }}
+  
+  # S3 storage configuration (AWS)
+  storage:
+    schemas:
+      - version: v13
+        effectiveDate: {{ .Values.effectiveDate | quote }}
+    secret:
+      name: {{ .Values.lokistack.storage.secretName }}
+      type: s3
+  
+  # StorageClass for Loki persistent volumes
+  storageClassName: gp3-csi
+  
+  # OIDC configuration for multi-tenant access
+  tenants:
+    mode: openshift-logging
+  
+  {{- if .Values.lokistack.nodeSelector }}
+  # Node placement - schedule on dedicated Loki nodes
+  template:
+    compactor:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    distributor:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    gateway:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    indexGateway:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    ingester:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    querier:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    queryFrontend:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+    ruler:
+      nodeSelector:
+        {{- toYaml .Values.lokistack.nodeSelector | nindent 8 }}
+      {{- if .Values.lokistack.tolerations }}
+      tolerations:
+        {{- toYaml .Values.lokistack.tolerations | nindent 8 }}
+      {{- end }}
+  {{- end }}

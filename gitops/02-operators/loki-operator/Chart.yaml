@@ -1,0 +1,6 @@
+apiVersion: v2
+name: loki-operator
+description: Deploy Loki Operator for OpenShift
+version: 1.0.0
+appVersion: "6.1"
+

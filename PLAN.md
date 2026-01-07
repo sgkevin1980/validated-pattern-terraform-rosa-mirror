@@ -816,12 +816,48 @@ locals {
 4. **IAM Roles**: Use prefixes to avoid conflicts across clusters
 5. **Secrets**: Never commit secrets to Git; use environment variables or Secrets Manager
 
-### Future: Repository 2 (Configuration & GitOps)
-- Bootstrap Module: Install OpenShift GitOps Operator
-- IDP Module: Configure identity providers (OIDC, GitHub)
-- Logging Module: Ship logs to CloudWatch/S3
-- Monitoring Module: Configure Prometheus/Alertmanager with SNS
-- Pattern: Terraform creates AWS resources, GitOps deploys cluster configuration
+### GitOps and Day 2 Operations (Hybrid Approach)
+
+This repository now includes Day 2 operations using a **hybrid approach**:
+
+**Terraform Manages:**
+- Namespaces for GitOps and Logging (`modules/configuration/gitops/`, `modules/configuration/loki/`)
+- S3 bucket for Loki log storage
+- IAM role (IRSA) for Loki S3 access
+- Kubernetes secret with S3 credentials
+- Dedicated machine pool for Loki workloads
+
+**Helm Charts Manage (`gitops/` folder):**
+- OpenShift GitOps operator installation (`01-bootstrap/`)
+- Loki and Cluster Logging operators (`02-operators/`)
+- LokiStack, ClusterLogForwarder, UIPlugin (`03-logging/`)
+
+**Why Hybrid?**
+- Terraform's `kubernetes_manifest` has issues with CRDs and timing
+- Helm charts handle Operator Subscriptions, InstallPlan approval, and CSV waiting better
+- Clear separation: Terraform manages infrastructure, Helm manages operators
+
+**Directory Structure:**
+```
+clusters/examples/<cluster>/
+├── infrastructure/    # VPC, IAM, Cluster (terraform apply first)
+└── configuration/     # Namespaces, Loki infra (terraform apply second)
+
+gitops/
+├── 01-bootstrap/      # GitOps operator (helm template | oc apply)
+├── 02-operators/      # Logging operators
+│   ├── loki-operator/
+│   └── cluster-logging-operator/
+└── 03-logging/        # LokiStack, ClusterLogForwarder, UIPlugin
+```
+
+**Deployment Order:**
+1. `terraform apply` in `clusters/examples/<cluster>/infrastructure/` - Creates VPC, IAM, ROSA cluster
+2. `terraform apply -var loki_enabled=true` in `clusters/examples/<cluster>/configuration/` - **ONE COMMAND** that:
+   - Creates Loki S3 bucket, IAM role (IRSA), K8s secret, machine pool
+   - Installs GitOps operator via `helm_release`
+   - Creates ArgoCD Applications via `helm_release`
+   - **ArgoCD automatically deploys** Loki Operator, Cluster Logging Operator, LokiStack, ClusterLogForwarder, UIPlugin
 
 ---
 

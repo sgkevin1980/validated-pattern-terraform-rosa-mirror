@@ -1,5 +1,5 @@
 module "network" {
-  source = "../../../modules/network-public"
+  source = "../../../../modules/infrastructure/network-public"
 
   name_prefix = var.cluster_name
   vpc_cidr    = var.vpc_cidr
@@ -9,7 +9,7 @@ module "network" {
 }
 
 module "iam" {
-  source = "../../../modules/iam"
+  source = "../../../../modules/infrastructure/iam"
 
   cluster_name         = var.cluster_name
   account_role_prefix  = var.cluster_name # No trailing dash - account-iam-resources module adds it
@@ -18,7 +18,7 @@ module "iam" {
 }
 
 module "cluster" {
-  source = "../../../modules/cluster"
+  source = "../../../../modules/infrastructure/cluster"
 
   # Required: Pass outputs from Network and IAM modules
   cluster_name       = var.cluster_name
@@ -65,7 +65,7 @@ module "cluster" {
 # This can be removed once an external identity provider is configured
 module "identity_admin" {
   count  = var.admin_password != null ? 1 : 0
-  source = "../../../modules/identity-admin"
+  source = "../../../../modules/infrastructure/identity-admin"
 
   cluster_id     = module.cluster.cluster_id
   admin_password = var.admin_password

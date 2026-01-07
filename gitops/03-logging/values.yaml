@@ -1,0 +1,49 @@
+# Logging Stack Values for OpenShift Logging 6.x
+# Reference: https://docs.openshift.com/container-platform/latest/observability/logging/
+
+# Namespace where logging components run
+namespace: openshift-logging
+
+# LokiStack configuration
+lokistack:
+  name: logging-loki
+  size: 1x.extra-small
+  # Storage configuration (from Terraform outputs)
+  storage:
+    # S3 bucket name (get from Terraform: module.loki.bucket_name)
+    bucketName: ""
+    # AWS region
+    region: us-east-1
+    # Secret name containing S3 credentials (created by Terraform)
+    secretName: loki-s3-secret
+  # Node placement for Loki pods (matches Terraform machine pool)
+  nodeSelector:
+    logging: loki
+  tolerations:
+    - key: logging
+      operator: Equal
+      value: loki
+      effect: NoSchedule
+  # Service account for IRSA (created by Terraform)
+  serviceAccountName: loki-sa
+
+# ClusterLogForwarder configuration (Logging 6.x API)
+clusterLogForwarder:
+  name: instance
+  # Service account for log collection
+  # This SA is auto-created by the Cluster Logging Operator
+  serviceAccount:
+    name: logging-collector
+  # Log inputs to collect (audit logs require additional RBAC)
+  inputs:
+    - application
+    - infrastructure
+
+# UIPlugin for OpenShift Console integration
+uiPlugin:
+  enabled: true
+  name: logging
+
+# Effective date for log storage (SchemaV13 format)
+# Logs before this date won't be accessible with new schema
+effectiveDate: "2024-10-15"

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed Loki S3 secret to include `endpoint` field required by LokiStack
+  - Added `endpoint` field with format `https://s3.<region>.amazonaws.com`
+  - Secret now contains: bucketnames, region, endpoint, role_arn (IRSA)
+  - Removed need for access_key_id/access_key_secret when using IRSA
+- Fixed ClusterLogForwarder CR to match working Logging 6.x configuration:
+  - Added `managementState: Managed` field
+  - Added TLS configuration with CA cert from `openshift-service-ca.crt` configmap
+  - Changed service account to `logging-collector` (auto-created by operator)
+  - Removed `collector` section (not required)
+  - Removed `audit` from default inputs (requires additional RBAC)
+- Added 12-minute wait for machine pool nodes to provision before deploying LokiStack
+  - EC2 instances take 10-15 minutes to join the cluster
+  - Prevents LokiStack pods from being stuck in Pending state
+
+### Added
+- GitOps and Loki logging with fully automated deployment:
+  - Set `loki_enabled=true` in Terraform to trigger complete Loki deployment
+  - `modules/configuration/loki/` - Creates S3 bucket, IAM role (IRSA), K8s secret, and dedicated machine pool
+  - `gitops/01-bootstrap/` - Helm chart for GitOps operator + ArgoCD Applications (deployed via `helm_release`)
+  - `gitops/02-operators/` - Helm charts for Loki and Cluster Logging operators (managed by ArgoCD)
+  - `gitops/03-logging/` - Helm chart for LokiStack, ClusterLogForwarder, and UIPlugin (managed by ArgoCD)
+- Fully automated deployment flow with single Terraform command:
+  1. `terraform apply -var loki_enabled=true` creates all prerequisites
+  2. Terraform installs GitOps operator via `helm_release` resource
+  3. Terraform creates ArgoCD Applications via `helm_release` resource
+  4. ArgoCD automatically deploys Loki operators and logging stack
+- Split cluster examples into `infrastructure/` and `configuration/` subdirectories:
+  - `infrastructure/` - VPC, IAM, ROSA cluster
+  - `configuration/` - Loki infrastructure + GitOps bootstrap
+  - Enables separate state management for infrastructure and configuration
+
 ### ⚠️ Work in Progress - Egress-Zero Cluster
 - **Egress-zero cluster configuration is currently non-functional**
 - Worker nodes are not starting successfully (0/1 replicas)

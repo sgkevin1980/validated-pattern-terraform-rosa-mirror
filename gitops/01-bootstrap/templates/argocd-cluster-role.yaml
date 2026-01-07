@@ -1,0 +1,26 @@
+{{- if not .Values.loki.enabled }}
+# Grant ArgoCD cluster-admin permissions for deploying operators and cluster-scoped resources
+# This is required for:
+# - Installing operators via Subscriptions
+# - Creating ClusterLogForwarder (cluster-scoped)
+# - Creating LokiStack with cluster-wide tenants
+# - Creating UIPlugin (cluster-scoped)
+# Note: Only created in the first release (when loki.enabled=false)
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-gitops-cluster-admin
+  labels:
+    app.kubernetes.io/name: openshift-gitops
+    app.kubernetes.io/part-of: gitops-bootstrap
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+{{- end }}
+

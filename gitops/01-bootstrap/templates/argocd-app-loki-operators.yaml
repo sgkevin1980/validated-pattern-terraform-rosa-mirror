@@ -1,0 +1,65 @@
+{{- if .Values.loki.enabled }}
+# ArgoCD Application to deploy Loki Operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki-operator
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: loki-operator
+    app.kubernetes.io/part-of: logging-stack
+  # Ensure this app is created after ArgoCD is ready
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.git.repoURL }}
+    targetRevision: {{ .Values.git.revision }}
+    path: {{ .Values.git.basePath }}/02-operators/loki-operator
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-operators-redhat
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# ArgoCD Application to deploy Cluster Logging Operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-logging-operator
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: cluster-logging-operator
+    app.kubernetes.io/part-of: logging-stack
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.git.repoURL }}
+    targetRevision: {{ .Values.git.revision }}
+    path: {{ .Values.git.basePath }}/02-operators/cluster-logging-operator
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}
+

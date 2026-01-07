@@ -1,0 +1,41 @@
+{{- if .Values.loki.enabled }}
+# ArgoCD Application to deploy Logging Stack (LokiStack, ClusterLogForwarder, UIPlugin)
+# This waits for operators to be installed first (sync-wave: 2)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: logging-stack
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: logging-stack
+    app.kubernetes.io/part-of: logging-stack
+  annotations:
+    # Higher sync-wave ensures operators are installed first
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.git.repoURL }}
+    targetRevision: {{ .Values.git.revision }}
+    path: {{ .Values.git.basePath }}/03-logging
+    helm:
+      valueFiles:
+        - values.yaml
+      # Override values with Terraform outputs
+      parameters:
+        - name: lokistack.storage.bucketName
+          value: {{ .Values.loki.bucketName | quote }}
+        - name: lokistack.storage.region
+          value: {{ .Values.loki.region | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}
+

@@ -1,0 +1,13 @@
+# Subscription for Cluster Logging Operator
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cluster-logging
+  namespace: {{ .Values.namespace }}
+spec:
+  channel: {{ .Values.channel }}
+  installPlanApproval: {{ .Values.installPlanApproval }}
+  name: cluster-logging
+  source: {{ .Values.source }}
+  sourceNamespace: openshift-marketplace
+

@@ -1,0 +1,7 @@
+# Loki Operator Values
+
+namespace: openshift-operators-redhat
+channel: stable-6.1
+source: redhat-operators
+installPlanApproval: Automatic
+

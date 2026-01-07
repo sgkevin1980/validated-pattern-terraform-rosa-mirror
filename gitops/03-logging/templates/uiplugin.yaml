@@ -1,0 +1,18 @@
+{{- if .Values.uiPlugin.enabled }}
+# UIPlugin for OpenShift Console logging integration
+# Reference: https://docs.openshift.com/container-platform/latest/observability/logging/log_visualization/log-visualization-ocp-console.html
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: {{ .Values.uiPlugin.name }}
+  labels:
+    app.kubernetes.io/name: logging-ui-plugin
+    app.kubernetes.io/part-of: logging-stack
+spec:
+  type: Logging
+  logging:
+    lokiStack:
+      name: {{ .Values.lokistack.name }}
+    logsLimit: 50
+    timeout: 30s
+{{- end }}

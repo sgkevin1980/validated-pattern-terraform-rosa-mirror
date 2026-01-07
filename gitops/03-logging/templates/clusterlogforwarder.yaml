@@ -1,0 +1,46 @@
+# ClusterLogForwarder for OpenShift Logging 6.x
+# Reference: https://docs.openshift.com/container-platform/latest/observability/logging/log_collection_forwarding/cluster-logging-collector.html
+# NOTE: In Logging 6.x, ClusterLogForwarder uses observability.openshift.io/v1 API
+#       and requires a service account for authentication
+apiVersion: observability.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+  name: {{ .Values.clusterLogForwarder.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: cluster-log-forwarder
+    app.kubernetes.io/part-of: logging-stack
+spec:
+  # Management state for the log forwarder
+  managementState: Managed
+  
+  # Service account for log collection (required in Logging 6.x)
+  serviceAccount:
+    name: {{ .Values.clusterLogForwarder.serviceAccount.name }}
+  
+  # Define outputs - where logs are sent
+  outputs:
+    - name: lokistack-out
+      type: lokiStack
+      lokiStack:
+        target:
+          name: {{ .Values.lokistack.name }}
+          namespace: {{ .Values.namespace }}
+        authentication:
+          token:
+            from: serviceAccount
+      # TLS configuration for internal cluster communication
+      tls:
+        ca:
+          configMapName: openshift-service-ca.crt
+          key: service-ca.crt
+  
+  # Define pipelines - how logs flow from inputs to outputs
+  pipelines:
+    - name: infra-app-logs
+      inputRefs:
+        {{- range .Values.clusterLogForwarder.inputs }}
+        - {{ . }}
+        {{- end }}
+      outputRefs:
+        - lokistack-out

@@ -1,0 +1,29 @@
+# GitOps Bootstrap Values
+
+# GitOps Operator Settings
+operator:
+  namespace: openshift-gitops-operator
+  channel: latest
+  source: redhat-operators
+  installPlanApproval: Automatic
+
+# ArgoCD Settings
+argocd:
+  namespace: openshift-gitops
+
+# Git Repository for ArgoCD Applications
+git:
+  # Repository URL containing the Helm charts
+  # For local development, this points to the same repo
+  repoURL: https://github.com/your-org/validated-pattern-terraform-rosa.git
+  revision: main
+  # Path prefix to gitops folder in the repo
+  basePath: gitops
+
+# Loki Logging Configuration
+loki:
+  enabled: true
+  # S3 bucket name (get from Terraform output)
+  bucketName: ""
+  # AWS region
+  region: us-east-1
