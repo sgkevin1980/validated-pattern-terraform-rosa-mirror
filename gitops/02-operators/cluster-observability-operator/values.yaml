@@ -1,0 +1,7 @@
+# Cluster Observability Operator Values
+
+namespace: openshift-observability
+channel: stable
+source: redhat-operators
+installPlanApproval: Automatic
+

@@ -39,10 +39,9 @@ clusterLogForwarder:
     - infrastructure
 
 # UIPlugin for OpenShift Console integration
-# Note: Requires cluster-observability-operator to be installed
-# Disable for now until that operator is available
+# Requires cluster-observability-operator to be installed (deployed via ArgoCD)
 uiPlugin:
-  enabled: false
+  enabled: true
   name: logging
 
 # Effective date for log storage (SchemaV13 format)

@@ -1,0 +1,9 @@
+# OperatorGroup for Cluster Observability Operator
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: cluster-observability-operator
+  namespace: {{ .Values.namespace }}
+spec:
+  upgradeStrategy: Default
+

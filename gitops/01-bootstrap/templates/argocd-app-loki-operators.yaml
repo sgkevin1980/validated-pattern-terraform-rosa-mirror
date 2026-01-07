@@ -1,4 +1,36 @@
 {{- if .Values.loki.enabled }}
+# ArgoCD Application to deploy Cluster Observability Operator
+# This operator provides the UIPlugin CRD required for the Logging console UI
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-observability-operator
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: cluster-observability-operator
+    app.kubernetes.io/part-of: logging-stack
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.git.repoURL }}
+    targetRevision: {{ .Values.git.revision }}
+    path: {{ .Values.git.basePath }}/02-operators/cluster-observability-operator
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
 # ArgoCD Application to deploy Loki Operator
 apiVersion: argoproj.io/v1alpha1
 kind: Application
