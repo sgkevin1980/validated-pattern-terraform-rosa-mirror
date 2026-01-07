@@ -93,8 +93,8 @@ help: ## Show this help message
 	@echo "$(GREEN)Existing Cluster Deployment:$(NC)"
 	@echo "  For deploying to an existing ROSA cluster (not managed by this Terraform):"
 	@echo ""
-	@echo "  1. Create from template:"
-	@echo "     make new-cluster CLUSTER=my-cluster"
+	@echo "  1. Initialize config from template:"
+	@echo "     make init-existing CLUSTER=my-cluster"
 	@echo ""
 	@echo "  2. Configure terraform.tfvars with your cluster details"
 	@echo "     (see clusters/examples/existing-cluster-template/README.md)"
@@ -102,7 +102,7 @@ help: ## Show this help message
 	@echo "  3. Deploy:"
 	@echo "     make deploy-existing CLUSTER=my-cluster"
 	@echo ""
-	@echo "  make new-cluster CLUSTER=<name>       Create config from template"
+	@echo "  make init-existing CLUSTER=<name>     Initialize config from template"
 	@echo "  make deploy-existing CLUSTER=<name>   Deploy to existing cluster"
 	@echo "  make destroy-existing CLUSTER=<name>  Remove configuration from existing cluster"
 	@echo ""
@@ -574,16 +574,16 @@ show-existing: _check-cluster ## Show outputs for existing cluster (requires CLU
 	@echo "$(BLUE)Outputs for existing cluster: $(CLUSTER)$(NC)"
 	@cd clusters/$(CLUSTER)/configuration && terraform output 2>/dev/null || echo "Configuration not deployed yet"
 
-# Create new cluster directory from template
-new-cluster: ## Create new cluster config from template (requires CLUSTER=name)
+# Initialize configuration for existing cluster from template
+init-existing: ## Initialize config files for existing cluster (requires CLUSTER=name)
 ifndef CLUSTER
-	$(error CLUSTER is not set. Usage: make new-cluster CLUSTER=my-cluster)
+	$(error CLUSTER is not set. Usage: make init-existing CLUSTER=my-cluster)
 endif
 	@if [ -d "clusters/$(CLUSTER)" ]; then \
 		echo "$(YELLOW)Error: clusters/$(CLUSTER) already exists$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(BLUE)Creating new cluster configuration: $(CLUSTER)$(NC)"
+	@echo "$(BLUE)Initializing configuration for existing cluster: $(CLUSTER)$(NC)"
 	@cp -r clusters/examples/existing-cluster-template clusters/$(CLUSTER)
 	@cp clusters/$(CLUSTER)/configuration/terraform.tfvars.example clusters/$(CLUSTER)/configuration/terraform.tfvars
 	@echo ""
