@@ -93,15 +93,16 @@ help: ## Show this help message
 	@echo "$(GREEN)Existing Cluster Deployment:$(NC)"
 	@echo "  For deploying to an existing ROSA cluster (not managed by this Terraform):"
 	@echo ""
-	@echo "  1. Copy the template:"
-	@echo "     cp -r clusters/existing-cluster-template clusters/my-cluster"
+	@echo "  1. Create from template:"
+	@echo "     make new-cluster CLUSTER=my-cluster"
 	@echo ""
 	@echo "  2. Configure terraform.tfvars with your cluster details"
-	@echo "     (see clusters/existing-cluster-template/README.md)"
+	@echo "     (see clusters/examples/existing-cluster-template/README.md)"
 	@echo ""
 	@echo "  3. Deploy:"
 	@echo "     make deploy-existing CLUSTER=my-cluster"
 	@echo ""
+	@echo "  make new-cluster CLUSTER=<name>       Create config from template"
 	@echo "  make deploy-existing CLUSTER=<name>   Deploy to existing cluster"
 	@echo "  make destroy-existing CLUSTER=<name>  Remove configuration from existing cluster"
 	@echo ""
@@ -520,7 +521,7 @@ ifndef CLUSTER
 endif
 	@if [ ! -d "clusters/$(CLUSTER)/configuration" ]; then \
 		echo "$(YELLOW)Error: clusters/$(CLUSTER)/configuration not found$(NC)"; \
-		echo "Copy the template first: cp -r clusters/existing-cluster-template clusters/$(CLUSTER)"; \
+		echo "Create from template: make new-cluster CLUSTER=$(CLUSTER)"; \
 		exit 1; \
 	fi
 
@@ -583,7 +584,7 @@ endif
 		exit 1; \
 	fi
 	@echo "$(BLUE)Creating new cluster configuration: $(CLUSTER)$(NC)"
-	@cp -r clusters/existing-cluster-template clusters/$(CLUSTER)
+	@cp -r clusters/examples/existing-cluster-template clusters/$(CLUSTER)
 	@cp clusters/$(CLUSTER)/configuration/terraform.tfvars.example clusters/$(CLUSTER)/configuration/terraform.tfvars
 	@echo ""
 	@echo "$(GREEN)Created: clusters/$(CLUSTER)$(NC)"
