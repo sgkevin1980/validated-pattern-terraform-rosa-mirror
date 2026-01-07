@@ -7,7 +7,9 @@ namespace: openshift-logging
 # LokiStack configuration
 lokistack:
   name: logging-loki
-  size: 1x.extra-small
+  # Size options: 1x.extra-small, 1x.small, 1x.medium
+  # extra-small often causes 429 rate limiting under normal log volume
+  size: 1x.small
   # Storage configuration (from Terraform outputs)
   storage:
     # S3 bucket name (get from Terraform: module.loki.bucket_name)
